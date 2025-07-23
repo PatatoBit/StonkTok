@@ -1,5 +1,9 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
 	import { signInWithEmail } from '$lib/auth';
+	import { supabase } from '$lib/supabaseClient';
+	import { onMount } from 'svelte';
+	import type { PageData } from './$types';
 
 	let email: string = '';
 
@@ -12,14 +16,26 @@
 			alert('Failed to sign in. Please try again.');
 		}
 	}
+
+	export let data: PageData;
 </script>
 
 <main class="flex-center">
 	<h1>StonkTok</h1>
 	<p>Grow a video</p>
 
-	<form action="" on:submit|preventDefault={handleSubmit}>
-		<input type="email" placeholder="Enter your email" required bind:value={email} />
-		<button type="submit">Submit</button>
-	</form>
+	{#if !data.session}
+		<form action="" on:submit|preventDefault={handleSubmit}>
+			<input type="email" placeholder="Enter your email" required bind:value={email} />
+			<button type="submit">Submit</button>
+		</form>
+	{:else}
+		<p>Welcome back, {data.session.user.email}!</p>
+		<button
+			on:click={async () => {
+				await supabase.auth.signOut();
+				invalidateAll();
+			}}>Sign out</button
+		>
+	{/if}
 </main>
