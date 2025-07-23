@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 
 	let { data } = $props();
 	let verificationStatus = $state('verifying');
@@ -43,6 +43,8 @@
 			if (!error) {
 				console.log('✅ Client-side verification successful, redirecting...');
 				verificationStatus = 'success';
+				// Invalidate auth state to ensure immediate update
+				await invalidateAll();
 				// Redirect to the next page
 				goto(next);
 			} else {
