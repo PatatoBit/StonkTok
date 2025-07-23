@@ -1,8 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { signInWithEmail } from '$lib/auth';
-	import { supabase } from '$lib/supabaseClient';
-	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
 
 	let email: string = '';
@@ -30,11 +28,20 @@
 			<button type="submit">Submit</button>
 		</form>
 	{:else}
-		<p>Welcome back, {data.session.user.email}!</p>
+		<p>Welcome back, {data.user?.email}!</p>
 		<button
 			on:click={async () => {
-				await supabase.auth.signOut();
-				invalidateAll();
+				try {
+					const { error } = await data.supabase.auth.signOut();
+					if (error) {
+						console.error('Error signing out:', error);
+					} else {
+						// Force invalidation of auth state immediately
+						await invalidateAll();
+					}
+				} catch (error) {
+					console.error('Unexpected error during sign out:', error);
+				}
 			}}>Sign out</button
 		>
 	{/if}
