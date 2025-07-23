@@ -37,6 +37,7 @@
 		]
 	},
 	"dependencies": {
+		"@supabase/supabase-js": "^2.52.0",
 		"sass": "^1.89.2"
 	}
 }
