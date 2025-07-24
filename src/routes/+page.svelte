@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { signInWithEmail } from '$lib/auth';
-	import { supabase } from '$lib/supabaseClient';
 	import type { PageData } from './$types';
+	export let data: PageData;
 
 	let email: string = '';
 
@@ -21,7 +21,7 @@
 
 	async function handleInvest() {
 		try {
-			const { data, error } = await supabase.functions.invoke('invest', {
+			const { data: res, error } = await data.supabase.functions.invoke('invest', {
 				body: {
 					videoUrl: formVideoUrl,
 					amount: amount
@@ -44,8 +44,6 @@
 		formVideoUrl = '';
 		amount = 1;
 	}
-
-	export let data: PageData;
 </script>
 
 <main class="flex-center">
