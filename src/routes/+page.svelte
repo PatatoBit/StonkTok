@@ -49,39 +49,66 @@
 </script>
 
 <main class="flex-center">
-	<h1>StonkTok</h1>
-	<p>Grow a video</p>
+	<div class="header-section">
+		<h1>StonkTok</h1>
+		<p class="subtitle">Grow a video</p>
+	</div>
 
 	{#if !data.session}
-		<form action="" on:submit|preventDefault={async () => await handleSubmit()}>
-			<input type="email" placeholder="Enter your email" required bind:value={email} />
-			<button type="submit">Submit</button>
-		</form>
+		<div class="auth-section">
+			<form class="auth-form" on:submit|preventDefault={async () => await handleSubmit()}>
+				<input
+					type="email"
+					placeholder="Enter your email"
+					required
+					bind:value={email}
+					class="form-input"
+				/>
+				<button type="submit" class="btn btn-primary">Submit</button>
+			</form>
+		</div>
 	{:else}
-		<p>Welcome back, {data.user?.email}!</p>
+		<div class="user-section">
+			<p class="welcome-text">Welcome back, {data.user?.email}!</p>
+		</div>
 
-		<form on:submit|preventDefault={async () => await handleInvest()}>
-			<input type="text" placeholder="Enter video URL" required bind:value={formVideoUrl} />
-			<input type="number" placeholder="Enter amount" required bind:value={amount} />
-			<button type="submit">Invest</button>
-		</form>
+		<div class="invest-section">
+			<form class="invest-form" on:submit|preventDefault={async () => await handleInvest()}>
+				<input
+					type="text"
+					placeholder="Enter video URL"
+					required
+					bind:value={formVideoUrl}
+					class="form-input"
+				/>
+				<input
+					type="number"
+					placeholder="Enter amount"
+					required
+					bind:value={amount}
+					class="form-input"
+				/>
+				<button type="submit" class="btn btn-primary">Invest</button>
+			</form>
+		</div>
 
-		<br />
-
-		<button
-			on:click={async () => {
-				try {
-					const { error } = await data.supabase.auth.signOut();
-					if (error) {
-						console.error('Error signing out:', error);
-					} else {
-						// Force invalidation of auth state immediately
-						await invalidateAll();
+		<div class="logout-section">
+			<button
+				class="btn btn-secondary"
+				on:click={async () => {
+					try {
+						const { error } = await data.supabase.auth.signOut();
+						if (error) {
+							console.error('Error signing out:', error);
+						} else {
+							// Force invalidation of auth state immediately
+							await invalidateAll();
+						}
+					} catch (error) {
+						console.error('Unexpected error during sign out:', error);
 					}
-				} catch (error) {
-					console.error('Unexpected error during sign out:', error);
-				}
-			}}>Sign out</button
-		>
+				}}>Sign out</button
+			>
+		</div>
 	{/if}
 </main>
