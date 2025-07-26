@@ -25,30 +25,27 @@ Deno.serve(async (req) => {
 			}
 		});
 	}
-	const supabase = createClient(
-		Deno.env.get('PROJECT_URL'),
-		Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
-		{
-			global: {
-				headers: {
-					Authorization: req.headers.get('Authorization')
-				}
+
+	const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
+		global: {
+			headers: {
+				Authorization: req.headers.get('Authorization')
 			}
 		}
-	);
+	});
 
 	const { videoUrl, amount } = await req.json();
-
 	const authHeader = req.headers.get('Authorization')!;
 	const token = authHeader.replace('Bearer ', '');
 	const {
 		data: { user }
 	} = await supabase.auth.getUser(token);
 
-	if (!user)
+	if (!user) {
 		return new Response('Unauthorized', {
 			status: 401
 		});
+	}
 
 	// Normalize and identify platform
 	const url = new URL(videoUrl);
