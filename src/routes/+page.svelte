@@ -20,6 +20,8 @@
 	let amount: number = 1;
 
 	async function handleInvest() {
+		console.log('Investing with video URL:', formVideoUrl, 'and amount:', amount);
+
 		try {
 			const { data: res, error } = await data.supabase.functions.invoke('invest', {
 				body: {
@@ -27,6 +29,8 @@
 					amount: amount
 				}
 			});
+
+			console.log('Function response:', res);
 
 			if (error) {
 				console.error('Error during investment:', error);
