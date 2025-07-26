@@ -37,16 +37,16 @@
 				alert('Investment failed. Please try again.');
 			} else {
 				alert('Investment successful!');
+
+				// Reset form fields
+				formVideoUrl = '';
+				amount = 1;
 				await invalidateAll();
 			}
 		} catch (err) {
 			console.error('Unexpected error during function call:', err);
 			alert('Unexpected error occurred. Check console for details.');
 		}
-
-		// Reset form fields
-		formVideoUrl = '';
-		amount = 1;
 	}
 </script>
 
