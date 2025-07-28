@@ -76,6 +76,7 @@ serve(async (req)=>{
     });
   }
   const items = await datasetRes.json();
+  console.log("Raw Instagram data: ", items);
   return new Response(JSON.stringify({
     items
   }), {
