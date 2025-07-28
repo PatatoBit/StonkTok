@@ -1,11 +1,22 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { Chart, type ChartConfiguration } from 'chart.js/auto';
-	import type { PageData } from '../../routes/$types';
+	import { supabase } from '$lib/supabaseClient';
 
-	export let data: PageData;
+	export let session: any;
 
 	let charts: Chart[] = [];
+	let investments: Investment[] = [];
+	let videoSnapshots: VideoSnapshot[] = [];
+	let loading = true;
+	let error = '';
+	let debug = {
+		hasSession: false,
+		userId: null,
+		investmentCount: 0,
+		snapshotCount: 0,
+		message: 'Loading...'
+	};
 
 	// Helper function to calculate ROI
 	function calculateROI(investment: Investment): { value: string; isPositive: boolean } {
@@ -23,31 +34,105 @@
 		return { value, isPositive };
 	}
 
-	onMount(() => {
-		// Create a chart for each investment
-		if (data.investments && data.investments.length > 0) {
-			data.investments.forEach((investment) => {
-				const canvas = document.querySelector(`.investment-${investment.id}`) as HTMLCanvasElement;
-				if (canvas) {
-					createInvestmentChart(canvas, investment);
-				}
-			});
+	async function fetchData() {
+		console.log('Session:', session ? 'Found' : 'Not found');
+		console.log('User ID:', session?.user?.id || 'No user ID');
+
+		debug.hasSession = !!session;
+		debug.userId = session?.user?.id || null;
+
+		if (!session) {
+			debug.message = 'No session found - please log in';
+			loading = false;
+			return;
 		}
 
-		// Cleanup function
-		return () => {
-			charts.forEach((chart) => chart.destroy());
-		};
-	});
+		try {
+			console.log('Fetching investments for user:', session.user.id);
+
+			// Fetch investments with joined video data for the current user
+			const { data: investmentData, error: investmentsError } = await supabase
+				.from('investments')
+				.select(
+					`
+					*,
+					video:videos(*)
+				`
+				)
+				.eq('user_id', session.user.id)
+				.order('invested_at', { ascending: false });
+
+			console.log('Investments query result:', {
+				count: investmentData?.length || 0,
+				error: investmentsError,
+				data: investmentData
+			});
+
+			if (investmentsError) {
+				console.error('Error fetching investments:', investmentsError);
+				error = `Failed to fetch investments: ${investmentsError.message}`;
+				loading = false;
+				return;
+			}
+
+			investments = investmentData || [];
+			debug.investmentCount = investments.length;
+
+			// Get all video IDs from investments to fetch snapshots
+			const videoIds = investments.map((inv) => inv.video_id);
+			console.log('Video IDs for snapshots:', videoIds);
+
+			if (videoIds.length > 0) {
+				const { data: snapshotData, error: snapshotsError } = await supabase
+					.from('video_snapshots')
+					.select('*')
+					.in('video_id', videoIds)
+					.order('created_at', { ascending: true });
+
+				console.log('Snapshots query result:', {
+					count: snapshotData?.length || 0,
+					error: snapshotsError
+				});
+
+				if (snapshotsError) {
+					console.error('Error fetching video snapshots:', snapshotsError);
+					error = `Failed to fetch video snapshots: ${snapshotsError.message}`;
+				} else {
+					videoSnapshots = snapshotData || [];
+				}
+			}
+
+			debug.snapshotCount = videoSnapshots.length;
+			debug.message = 'Data loaded successfully from frontend';
+			loading = false;
+
+			// Create charts after data is loaded
+			setTimeout(createCharts, 100);
+		} catch (err) {
+			console.error('Error in data fetching:', err);
+			error = err instanceof Error ? err.message : 'Unknown error occurred';
+			loading = false;
+		}
+	}
+
+	function createCharts() {
+		// Create a chart for each investment
+		investments.forEach((investment) => {
+			const canvas = document.querySelector(`.investment-${investment.id}`) as HTMLCanvasElement;
+			if (canvas) {
+				createInvestmentChart(canvas, investment);
+			}
+		});
+	}
 
 	function createInvestmentChart(canvas: HTMLCanvasElement, investment: Investment) {
 		// Get snapshots for this specific video
-		const videoSnapshots = (data.videoSnapshots || []).filter(
+		const investmentSnapshots = videoSnapshots.filter(
 			(snapshot) => snapshot.video_id === investment.video_id
 		);
 
-		// If no snapshots, don't create chart
-		if (videoSnapshots.length === 0) {
+		// If no snapshots, show message
+		if (investmentSnapshots.length === 0) {
 			const ctx = canvas.getContext('2d');
 			if (ctx) {
 				ctx.fillStyle = '#666';
@@ -59,20 +144,20 @@
 		}
 
 		// Sort snapshots by creation date
-		videoSnapshots.sort(
+		investmentSnapshots.sort(
 			(a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
 		);
 
 		// Prepare data for the chart
-		const labels = videoSnapshots.map((snapshot) =>
+		const labels = investmentSnapshots.map((snapshot) =>
 			new Date(snapshot.created_at).toLocaleTimeString('en-US', {
 				hour: '2-digit',
 				minute: '2-digit'
 			})
 		);
 
-		const likesData = videoSnapshots.map((snapshot) => snapshot.likes);
-		const commentsData = videoSnapshots.map((snapshot) => snapshot.comments);
+		const likesData = investmentSnapshots.map((snapshot) => snapshot.likes);
+		const commentsData = investmentSnapshots.map((snapshot) => snapshot.comments);
 
 		const config: ChartConfiguration = {
 			type: 'line',
@@ -128,15 +213,70 @@
 		const chart = new Chart(canvas, config);
 		charts.push(chart);
 	}
+
+	onMount(() => {
+		fetchData();
+
+		// Cleanup function
+		return () => {
+			charts.forEach((chart) => chart.destroy());
+		};
+	});
 </script>
+
+<!-- Debug Info -->
+<div class="debug-info">
+	<h3>Debug Information (Frontend)</h3>
+	<div class="debug-grid">
+		<div class="debug-item">
+			<strong>User ID:</strong>
+			<span class="user-id">{debug.userId || 'Not logged in'}</span>
+		</div>
+		<div class="debug-item">
+			<strong>Email:</strong>
+			<span>{session?.user?.email || 'N/A'}</span>
+		</div>
+		<div class="debug-item">
+			<strong>Has Session:</strong>
+			<span class="status {debug.hasSession ? 'success' : 'error'}">
+				{debug.hasSession ? 'Yes' : 'No'}
+			</span>
+		</div>
+		<div class="debug-item">
+			<strong>Investments Found:</strong>
+			<span class="count">{debug.investmentCount}</span>
+		</div>
+		<div class="debug-item">
+			<strong>Snapshots Found:</strong>
+			<span class="count">{debug.snapshotCount}</span>
+		</div>
+		<div class="debug-item">
+			<strong>Message:</strong>
+			<span class="message">{debug.message}</span>
+		</div>
+		{#if error}
+			<div class="debug-item error-item">
+				<strong>Error:</strong>
+				<span class="error">{error}</span>
+			</div>
+		{/if}
+	</div>
+</div>
 
 <section class="investments wrapper">
 	<h2>Investments</h2>
-	{#if data.investments && data.investments.length === 0}
+
+	{#if loading}
+		<p class="loading">Loading investments...</p>
+	{:else if error}
+		<p class="error">Error: {error}</p>
+	{:else if !session}
+		<p class="no-session">Please log in to view your investments.</p>
+	{:else if investments.length === 0}
 		<p class="no-investments">No investments found. Start investing in viral videos!</p>
-	{:else if data.investments}
+	{:else}
 		<div class="investments-grid">
-			{#each data.investments as investment}
+			{#each investments as investment}
 				<div class="investment-card">
 					<div class="investment-info">
 						<h3>Investment #{investment.id.slice(-8)}</h3>
@@ -168,12 +308,100 @@
 				</div>
 			{/each}
 		</div>
-	{:else}
-		<p class="no-investments">Loading investments...</p>
 	{/if}
 </section>
 
 <style>
+	.debug-info {
+		background: #f8f9fa;
+		border: 1px solid #dee2e6;
+		border-radius: 8px;
+		padding: 1rem;
+		margin: 1rem 0;
+		font-family: 'Courier New', monospace;
+		font-size: 0.9rem;
+	}
+
+	.debug-info h3 {
+		margin: 0 0 1rem 0;
+		color: #495057;
+		font-family: inherit;
+	}
+
+	.debug-grid {
+		display: grid;
+		gap: 0.5rem;
+	}
+
+	.debug-item {
+		display: flex;
+		justify-content: space-between;
+		padding: 0.25rem 0;
+	}
+
+	.debug-item strong {
+		color: #495057;
+		min-width: 140px;
+	}
+
+	.user-id {
+		font-family: monospace;
+		background: #e9ecef;
+		padding: 2px 6px;
+		border-radius: 4px;
+		font-size: 0.8rem;
+	}
+
+	.status.success {
+		color: #28a745;
+		font-weight: bold;
+	}
+
+	.status.error {
+		color: #dc3545;
+		font-weight: bold;
+	}
+
+	.count {
+		background: #007bff;
+		color: white;
+		padding: 2px 8px;
+		border-radius: 12px;
+		font-size: 0.8rem;
+		font-weight: bold;
+	}
+
+	.message {
+		color: #6c757d;
+		font-style: italic;
+	}
+
+	.error-item {
+		background: #f8d7da;
+		padding: 0.5rem;
+		border-radius: 4px;
+		margin-top: 0.5rem;
+	}
+
+	.error {
+		color: #721c24;
+		font-weight: bold;
+	}
+
+	.loading {
+		text-align: center;
+		color: #007bff;
+		font-style: italic;
+		margin: 2rem 0;
+	}
+
+	.no-session {
+		text-align: center;
+		color: #dc3545;
+		font-weight: bold;
+		margin: 2rem 0;
+	}
+
 	.no-investments {
 		text-align: center;
 		color: #666;
@@ -239,6 +467,14 @@
 	}
 
 	@media (min-width: 768px) {
+		.debug-grid {
+			grid-template-columns: 1fr 1fr;
+		}
+
+		.error-item {
+			grid-column: 1 / -1;
+		}
+
 		.investments-grid {
 			grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
 		}
