@@ -29,3 +29,38 @@ export const dummyInvestments: Investment[] = [
 		investedAt: new Date('2023-10-03T12:00:00Z').toISOString()
 	}
 ];
+
+export const dummySnapshots: VideoSnapshot[] = [
+	{
+		videoId: '1234567890',
+		likes: 60,
+		comments: 12,
+		createdAt: new Date('2023-10-01T12:00:00Z').toISOString()
+	},
+	{
+		videoId: '1234567890',
+		likes: 72,
+		comments: 16,
+		createdAt: new Date('2023-10-01T12:05:00Z').toISOString()
+	},
+	{
+		videoId: '1234567890',
+		likes: 110,
+		comments: 22,
+		createdAt: new Date('2023-10-02T12:20:00Z').toISOString()
+	},
+
+	{
+		videoId: '0987654321',
+		likes: 120,
+		comments: 25,
+		createdAt: new Date('2023-10-02T12:00:00Z').toISOString()
+	},
+
+	{
+		videoId: '1122334455',
+		likes: 80,
+		comments: 18,
+		createdAt: new Date('2023-10-03T12:00:00Z').toISOString()
+	}
+];

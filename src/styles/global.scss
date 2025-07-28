@@ -30,6 +30,13 @@ h1 {
 	gap: 2rem;
 }
 
+.wrapper {
+	display: flex;
+	flex-direction: column;
+	max-width: 1000px;
+	margin: 0 auto;
+}
+
 /* Section spacing */
 .header-section {
 	margin-bottom: 1rem;
