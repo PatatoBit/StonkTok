@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { signInWithEmail } from '$lib/auth';
+	import Investments from '$lib/components/Investments.svelte';
 	import type { PageData } from './$types';
 	export let data: PageData;
 
@@ -114,3 +115,5 @@
 		</div>
 	{/if}
 </main>
+
+<Investments />
