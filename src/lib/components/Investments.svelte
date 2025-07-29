@@ -66,9 +66,6 @@
 				.eq('user_id', data.session.user.id)
 				.order('invested_at', { ascending: false });
 
-			const { data: user } = await data.supabase.auth.getUser();
-			console.log('User data:', user);
-
 			console.log('Investments query result:', {
 				count: investmentData?.length || 0,
 				error: investmentsError,
