@@ -19,19 +19,23 @@
 	};
 
 	// Helper function to calculate ROI
-	function calculateROI(investment: Investment): { value: string; isPositive: boolean } {
-		if (!investment.video) return { value: 'N/A', isPositive: false };
+	function calculateROI(investment: Investment): {
+		value: string;
+		isPositive: boolean;
+		percentage: number;
+	} {
+		if (!investment.video) return { value: 'N/A', isPositive: false, percentage: 0 };
 
 		const initialLikes = investment.like_count_at_investment;
 		const currentLikes = investment.video.current_likes;
 		const likesGrowth = currentLikes - initialLikes;
 
 		// Simple ROI calculation - you can adjust this formula based on your business logic
-		const roi = (likesGrowth / investment.amount) * 100;
+		const roi = (likesGrowth / currentLikes) * 100;
 		const isPositive = roi > 0;
 		const value = isPositive ? `+${roi.toFixed(2)}%` : `${roi.toFixed(2)}%`;
 
-		return { value, isPositive };
+		return { value, isPositive, percentage: roi };
 	}
 
 	async function fetchData() {
@@ -286,6 +290,16 @@
 							<span class="roi {calculateROI(investment).isPositive ? 'positive' : 'negative'}">
 								{calculateROI(investment).value}
 							</span>
+						</p>
+						<p>
+							<strong
+								>Profit:
+								<span class="roi {calculateROI(investment).isPositive ? 'positive' : 'negative'}">
+									{investment.amount
+										? (investment.amount * calculateROI(investment).percentage) / 100
+										: 'N/A'}
+								</span>
+							</strong>
 						</p>
 						<p>
 							<strong>Video URL:</strong>
