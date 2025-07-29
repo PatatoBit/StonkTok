@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { Chart, type ChartConfiguration } from 'chart.js/auto';
-	import { supabase } from '$lib/supabaseClient';
+	import type { PageData } from '../../routes/$types';
 
-	export let session: any;
+	export let data: PageData;
 
 	let charts: Chart[] = [];
 	let investments: Investment[] = [];
@@ -12,7 +12,7 @@
 	let error = '';
 	let debug = {
 		hasSession: false,
-		userId: null,
+		userId: null as string | null,
 		investmentCount: 0,
 		snapshotCount: 0,
 		message: 'Loading...'
@@ -39,23 +39,23 @@
 	}
 
 	async function fetchData() {
-		console.log('Session:', session ? 'Found' : 'Not found');
-		console.log('User ID:', session?.user?.id || 'No user ID');
+		console.log('Session:', data.session ? 'Found' : 'Not found');
+		console.log('User ID:', data.session?.user?.id || 'No user ID');
 
-		debug.hasSession = !!session;
-		debug.userId = session?.user?.id || null;
+		debug.hasSession = !!data.session;
+		debug.userId = data.session?.user?.id || null;
 
-		if (!session) {
+		if (!data.session) {
 			debug.message = 'No session found - please log in';
 			loading = false;
 			return;
 		}
 
 		try {
-			console.log('Fetching investments for user:', session.user.id);
+			console.log('Fetching investments for user:', data.session.user.id);
 
 			// Fetch investments with joined video data for the current user
-			const { data: investmentData, error: investmentsError } = await supabase
+			const { data: investmentData, error: investmentsError } = await data.supabase
 				.from('investments')
 				.select(
 					`
@@ -63,8 +63,11 @@
 					video:videos(*)
 				`
 				)
-				.eq('user_id', session.user.id)
+				.eq('user_id', data.session.user.id)
 				.order('invested_at', { ascending: false });
+
+			const { data: user } = await data.supabase.auth.getUser();
+			console.log('User data:', user);
 
 			console.log('Investments query result:', {
 				count: investmentData?.length || 0,
@@ -87,7 +90,7 @@
 			console.log('Video IDs for snapshots:', videoIds);
 
 			if (videoIds.length > 0) {
-				const { data: snapshotData, error: snapshotsError } = await supabase
+				const { data: snapshotData, error: snapshotsError } = await data.supabase
 					.from('video_snapshots')
 					.select('*')
 					.in('video_id', videoIds)
@@ -120,16 +123,29 @@
 	}
 
 	function createCharts() {
-		// Create a chart for each investment
+		// Create charts for each investment
 		investments.forEach((investment) => {
-			const canvas = document.querySelector(`.investment-${investment.id}`) as HTMLCanvasElement;
-			if (canvas) {
-				createInvestmentChart(canvas, investment);
+			const likesCanvas = document.querySelector(
+				`.investment-likes-${investment.id}`
+			) as HTMLCanvasElement;
+			const commentsCanvas = document.querySelector(
+				`.investment-comments-${investment.id}`
+			) as HTMLCanvasElement;
+
+			if (likesCanvas) {
+				createInvestmentChart(likesCanvas, investment, 'likes');
+			}
+			if (commentsCanvas) {
+				createInvestmentChart(commentsCanvas, investment, 'comments');
 			}
 		});
 	}
 
-	function createInvestmentChart(canvas: HTMLCanvasElement, investment: Investment) {
+	function createInvestmentChart(
+		canvas: HTMLCanvasElement,
+		investment: Investment,
+		chartType: 'likes' | 'comments'
+	) {
 		// Get snapshots for this specific video
 		const investmentSnapshots = videoSnapshots.filter(
 			(snapshot) => snapshot.video_id === investment.video_id
@@ -160,8 +176,15 @@
 			})
 		);
 
-		const likesData = investmentSnapshots.map((snapshot) => snapshot.likes);
-		const commentsData = investmentSnapshots.map((snapshot) => snapshot.comments);
+		const data =
+			chartType === 'likes'
+				? investmentSnapshots.map((snapshot) => snapshot.likes)
+				: investmentSnapshots.map((snapshot) => snapshot.comments);
+
+		const chartColor = chartType === 'likes' ? 'rgb(255, 99, 132)' : 'rgb(54, 162, 235)';
+		const chartBgColor =
+			chartType === 'likes' ? 'rgba(255, 99, 132, 0.2)' : 'rgba(54, 162, 235, 0.2)';
+		const chartLabel = chartType === 'likes' ? 'Likes' : 'Comments';
 
 		const config: ChartConfiguration = {
 			type: 'line',
@@ -169,39 +192,38 @@
 				labels: labels,
 				datasets: [
 					{
-						label: 'Likes',
-						data: likesData,
-						borderColor: 'rgb(255, 99, 132)',
-						backgroundColor: 'rgba(255, 99, 132, 0.2)',
-						tension: 0.1
-					},
-					{
-						label: 'Comments',
-						data: commentsData,
-						borderColor: 'rgb(54, 162, 235)',
-						backgroundColor: 'rgba(54, 162, 235, 0.2)',
-						tension: 0.1
+						label: chartLabel,
+						data: data,
+						borderColor: chartColor,
+						backgroundColor: chartBgColor,
+						tension: 0.1,
+						fill: true
 					}
 				]
 			},
 			options: {
 				responsive: true,
 				maintainAspectRatio: false,
+				interaction: {
+					intersect: false
+				},
 				plugins: {
 					title: {
 						display: true,
-						text: `${investment.video?.creator_handle || 'Unknown Creator'} - $${investment.amount} (ROI: ${calculateROI(investment).value})`
+						text: `${chartLabel} - ${investment.video?.creator_handle || 'Unknown Creator'} ($${investment.amount})`
 					},
 					legend: {
-						position: 'top'
+						display: false
 					}
 				},
 				scales: {
 					y: {
-						beginAtZero: true,
+						beginAtZero: false,
+						suggestedMin: Math.min(...data) * 0.9,
+						suggestedMax: Math.max(...data) * 1.1,
 						title: {
 							display: true,
-							text: 'Count'
+							text: chartLabel
 						}
 					},
 					x: {
@@ -238,7 +260,7 @@
 		</div>
 		<div class="debug-item">
 			<strong>Email:</strong>
-			<span>{session?.user?.email || 'N/A'}</span>
+			<span>{data.session?.user?.email || 'N/A'}</span>
 		</div>
 		<div class="debug-item">
 			<strong>Has Session:</strong>
@@ -274,7 +296,7 @@
 		<p class="loading">Loading investments...</p>
 	{:else if error}
 		<p class="error">Error: {error}</p>
-	{:else if !session}
+	{:else if !data.session}
 		<p class="no-session">Please log in to view your investments.</p>
 	{:else if investments.length === 0}
 		<p class="no-investments">No investments found. Start investing in viral videos!</p>
@@ -318,7 +340,16 @@
 						<p><strong>Current Likes:</strong> {investment.video?.current_likes || 'N/A'}</p>
 						<p><strong>Current Comments:</strong> {investment.video?.current_comments || 'N/A'}</p>
 					</div>
-					<canvas class="investment-{investment.id}"></canvas>
+					<div class="charts-container">
+						<div class="chart-section">
+							<h4>Likes Over Time</h4>
+							<canvas class="investment-likes-{investment.id}"></canvas>
+						</div>
+						<div class="chart-section">
+							<h4>Comments Over Time</h4>
+							<canvas class="investment-comments-{investment.id}"></canvas>
+						</div>
+					</div>
 				</div>
 			{/each}
 		</div>
@@ -474,10 +505,29 @@
 		color: #dc3545;
 	}
 
+	.charts-container {
+		display: grid;
+		gap: 1.5rem;
+		margin-top: 1rem;
+	}
+
+	.chart-section {
+		background: #f8f9fa;
+		border-radius: 6px;
+		padding: 1rem;
+	}
+
+	.chart-section h4 {
+		margin: 0 0 1rem 0;
+		color: #495057;
+		font-size: 1rem;
+		text-align: center;
+	}
+
 	canvas {
 		width: 100% !important;
-		height: 300px !important;
-		max-height: 300px;
+		height: 250px !important;
+		max-height: 250px;
 	}
 
 	@media (min-width: 768px) {
@@ -490,7 +540,17 @@
 		}
 
 		.investments-grid {
-			grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+			grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+		}
+
+		.charts-container {
+			grid-template-columns: 1fr 1fr;
+		}
+	}
+
+	@media (min-width: 1200px) {
+		.investments-grid {
+			grid-template-columns: repeat(auto-fit, minmax(800px, 1fr));
 		}
 	}
 </style>

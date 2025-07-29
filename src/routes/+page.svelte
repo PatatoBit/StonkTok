@@ -6,4 +6,4 @@
 </script>
 
 <MainContent {data} />
-<Investments session={data.session} />
+<Investments {data} />
