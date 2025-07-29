@@ -14,8 +14,7 @@ serve(async (req)=>{
   const inputPayload = {
     username: [
       videoUrl
-    ],
-    resultsLimit: 30
+    ]
   };
   const startRunRes = await fetch('https://api.apify.com/v2/acts/xMc5Ga1oCONPmWJIa/runs', {
     method: 'POST',

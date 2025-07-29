@@ -40,8 +40,9 @@ serve(async ()=>{
           likes = item?.diggCount ?? null;
           comments = item?.commentCount ?? null;
         } else if (platform === 'instagram') {
-          likes = scrapeData?.likesCount ?? null;
-          comments = scrapeData?.commentsCount ?? null;
+          const item = scrapeData?.items?.[0];
+          likes = item?.likesCount ?? null;
+          comments = item?.commentsCount ?? null;
         }
         if (likes === null || comments === null) {
           console.warn(`Missing stats for video ${id}: likes=${likes}, comments=${comments}`);
