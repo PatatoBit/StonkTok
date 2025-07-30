@@ -66,18 +66,10 @@ serve(async (req) => {
 			}
 		);
 	}
-	// Normalize stats
-	let likes = null;
-	let comments = null;
-	if (platform === 'tiktok') {
-		const item = scrapeData?.items?.[0];
-		likes = item?.diggCount ?? null;
-		comments = item?.commentCount ?? null;
-	} else if (platform === 'instagram') {
-		const item = scrapeData?.items?.[0];
-		likes = item?.likesCount ?? null;
-		comments = item?.commentsCount ?? null;
-	}
+	// Extract stats from consistent format
+	const likes = scrapeData?.likesCount ?? null;
+	const comments = scrapeData?.commentsCount ?? null;
+
 	if (likes !== null || comments !== null) {
 		await supabase
 			.from('videos')

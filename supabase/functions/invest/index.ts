@@ -39,6 +39,8 @@ Deno.serve(async (req) => {
 			headers: corsHeaders
 		});
 	}
+
+	// Authentication check
 	const authHeader = req.headers.get('Authorization');
 	const token = authHeader?.replace('Bearer ', '');
 	const {
@@ -52,6 +54,7 @@ Deno.serve(async (req) => {
 			headers: corsHeaders
 		});
 	}
+
 	// Normalize URL
 	let url;
 	try {
