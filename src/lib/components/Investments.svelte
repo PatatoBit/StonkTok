@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { Chart, type ChartConfiguration } from 'chart.js/auto';
 	import type { PageData } from '../../routes/$types';
+	import { roundToTwoDecimals } from '$lib/utility';
 
 	export let data: PageData;
 
@@ -314,8 +315,10 @@
 							<strong
 								>Profit:
 								<span class="roi {calculateROI(investment).isPositive ? 'positive' : 'negative'}">
-									{investment.amount
-										? (investment.amount * calculateROI(investment).percentage) / 100
+									${investment.amount
+										? roundToTwoDecimals(
+												(investment.amount * calculateROI(investment).percentage) / 100
+											)
 										: 'N/A'}
 								</span>
 							</strong>
