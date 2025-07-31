@@ -117,19 +117,17 @@ Deno.serve(async (req) => {
 		console.info('Found existing video:', existingVideo);
 	}
 
-	supabase.functions.invoke('update-single-video', {
-		body: {
-			video_id: existingVideo.id
-		}
-	});
-
-	const investRes = await supabase.from('investments').insert({
-		user_id: user.id,
-		video_id: existingVideo.id,
-		amount,
-		like_count_at_investment: existingVideo.current_likes,
-		comment_count_at_investment: existingVideo.current_comments
-	});
+	const investRes = await supabase
+		.from('investments')
+		.insert({
+			user_id: user.id,
+			video_id: existingVideo.id,
+			amount,
+			like_count_at_investment: existingVideo.current_likes,
+			comment_count_at_investment: existingVideo.current_comments
+		})
+		.select()
+		.single();
 	if (investRes.error) {
 		console.error('Investment insertion failed:', investRes.error);
 		return new Response(JSON.stringify(investRes.error), {
@@ -138,6 +136,13 @@ Deno.serve(async (req) => {
 		});
 	}
 	console.log('Investment recorded:', investRes.data);
+
+	supabase.functions.invoke('update-single-video', {
+		body: {
+			video_id: existingVideo.id,
+			investment_id: investRes.data.id
+		}
+	});
 
 	return new Response(
 		JSON.stringify({
