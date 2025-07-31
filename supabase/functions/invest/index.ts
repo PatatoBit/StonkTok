@@ -20,13 +20,12 @@ Deno.serve(async (req) => {
 			headers: corsHeaders
 		});
 	}
-	const supabase = createClient(Deno.env.get('SUPABASE_URL'), Deno.env.get('SUPABASE_ANON_KEY'), {
-		global: {
-			headers: {
-				Authorization: req.headers.get('Authorization')
-			}
-		}
-	});
+
+	const supabase = createClient(
+		Deno.env.get('SUPABASE_URL'),
+		Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+	);
+
 	let videoUrl, amount;
 	try {
 		const body = await req.json();
@@ -78,86 +77,58 @@ Deno.serve(async (req) => {
 			headers: corsHeaders
 		});
 	}
-	let video;
-	const { data: lookupData, error: lookupErr } = await supabase
+
+	// Check if video already exists, if not, insert it
+	const { data: fetchedVideo, error: fetchErr } = await supabase
 		.from('videos')
-		.select('*')
+		.select('id, current_likes, current_comments')
 		.eq('video_url', cleanVideoUrl)
 		.single();
-	if (lookupErr?.code === 'PGRST116') {
-		const createVideoCall = await supabase.functions.invoke('register-video', {
-			body: {
-				videoUrl: cleanVideoUrl,
-				platform
-			}
+	let existingVideo = fetchedVideo;
+
+	// Handle fetch errors or if video does not exist
+	if (fetchErr && fetchErr.code !== 'PGRST116') {
+		console.error('Error fetching video:', fetchErr);
+		return new Response('Failed to fetch video', {
+			status: 500,
+			headers: corsHeaders
 		});
-		if (createVideoCall.error) {
-			console.error('Video creation failed:', createVideoCall.error);
-			return new Response(
-				JSON.stringify({
-					message: 'Video creation failed',
-					error: createVideoCall.error
-				}),
-				{
-					status: 500,
-					headers: corsHeaders
-				}
-			);
-		}
-		console.log('Raw createVideoCall.data:', createVideoCall.data);
-		// Re-fetch the video (safe fallback)
-		const refetch = await supabase
+	} else if ((fetchErr && fetchErr.code === 'PGRST116') || !existingVideo) {
+		// Insert new video if it doesn't exist
+		const { data: insertedVideo, error: insertErr } = await supabase
 			.from('videos')
-			.select('*')
-			.eq('video_url', cleanVideoUrl)
+			.insert({
+				video_url: cleanVideoUrl,
+				platform
+			})
+			.select()
 			.single();
-		if (refetch.error) {
-			console.error('Video re-fetch failed:', refetch.error);
-			return new Response(
-				JSON.stringify({
-					message: 'Video re-fetch failed after creation',
-					error: refetch.error
-				}),
-				{
-					status: 500,
-					headers: corsHeaders
-				}
-			);
+
+		if (insertErr) {
+			console.error('Failed to insert new video:', insertErr);
+			return new Response(JSON.stringify({ error: 'Failed to insert video' }), {
+				status: 500,
+				headers: corsHeaders
+			});
 		}
-		video = refetch.data;
-	} else if (lookupErr) {
-		console.error('Video lookup failed:', lookupErr.message);
-		return new Response(
-			JSON.stringify({
-				message: 'Video lookup failed',
-				error: lookupErr.message
-			}),
-			{
-				status: 500,
-				headers: corsHeaders
-			}
-		);
+		console.info('Inserted new video:', insertedVideo);
+		existingVideo = insertedVideo;
 	} else {
-		video = lookupData;
+		console.info('Found existing video:', existingVideo);
 	}
-	if (!video || typeof video.id !== 'string') {
-		console.error('Video not available or id is invalid after creation.');
-		return new Response(
-			JSON.stringify({
-				message: 'Video not available or id is invalid after creation.'
-			}),
-			{
-				status: 500,
-				headers: corsHeaders
-			}
-		);
-	}
+
+	supabase.functions.invoke('update-single-video', {
+		body: {
+			video_id: existingVideo.id
+		}
+	});
+
 	const investRes = await supabase.from('investments').insert({
 		user_id: user.id,
-		video_id: video.id,
+		video_id: existingVideo.id,
 		amount,
-		like_count_at_investment: video.current_likes,
-		comment_count_at_investment: video.current_comments
+		like_count_at_investment: existingVideo.current_likes,
+		comment_count_at_investment: existingVideo.current_comments
 	});
 	if (investRes.error) {
 		console.error('Investment insertion failed:', investRes.error);
@@ -166,10 +137,12 @@ Deno.serve(async (req) => {
 			headers: corsHeaders
 		});
 	}
+	console.log('Investment recorded:', investRes.data);
+
 	return new Response(
 		JSON.stringify({
 			message: 'Investment successful',
-			videoId: video.id,
+			videoId: existingVideo.id,
 			userId: user.id,
 			amount
 		}),
