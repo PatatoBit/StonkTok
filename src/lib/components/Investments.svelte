@@ -31,8 +31,7 @@
 		const currentLikes = investment.video.current_likes;
 		const likesGrowth = currentLikes - initialLikes;
 
-		// Simple ROI calculation - you can adjust this formula based on your business logic
-		const roi = (likesGrowth / currentLikes) * 100;
+		const roi = (likesGrowth / initialLikes) * 100;
 		const isPositive = roi > 0;
 		const value = isPositive ? `+${roi.toFixed(2)}%` : `${roi.toFixed(2)}%`;
 
