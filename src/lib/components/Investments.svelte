@@ -2,12 +2,13 @@
 	import { onMount } from 'svelte';
 	import { Chart, type ChartConfiguration } from 'chart.js/auto';
 	import type { PageData } from '../../routes/$types';
-	import { roundToTwoDecimals } from '$lib/utility';
+	import { roundToTwoDecimals, calculateROI } from '$lib/utility';
 
 	export let data: PageData;
 
 	let charts: Chart[] = [];
 	let investments: Investment[] = [];
+	let userBalance: number = 0;
 	let videoSnapshots: VideoSnapshot[] = [];
 	let loading = true;
 	let error = '';
@@ -18,25 +19,6 @@
 		snapshotCount: 0,
 		message: 'Loading...'
 	};
-
-	// Helper function to calculate ROI
-	function calculateROI(investment: Investment): {
-		value: string;
-		isPositive: boolean;
-		percentage: number;
-	} {
-		if (!investment.video) return { value: 'N/A', isPositive: false, percentage: 0 };
-
-		const initialLikes = investment.like_count_at_investment;
-		const currentLikes = investment.video.current_likes;
-		const likesGrowth = currentLikes - initialLikes;
-
-		const roi = (likesGrowth / initialLikes) * 100;
-		const isPositive = roi > 0;
-		const value = isPositive ? `+${roi.toFixed(2)}%` : `${roi.toFixed(2)}%`;
-
-		return { value, isPositive, percentage: roi };
-	}
 
 	async function fetchData() {
 		console.log('Session:', data.session ? 'Found' : 'Not found');
@@ -53,6 +35,22 @@
 
 		try {
 			console.log('Fetching investments for user:', data.session.user.id);
+
+			const { data: userBalanceData, error: balanceError } = await data.supabase
+				.from('profiles')
+				.select('balance')
+				.eq('id', data.session.user.id)
+				.single();
+
+			if (balanceError) {
+				console.error('Error fetching user balance:', balanceError);
+				error = `Failed to fetch user balance: ${balanceError.message}`;
+				loading = false;
+				return;
+			}
+
+			userBalance = userBalanceData?.balance || 0;
+			debug.message = 'User balance fetched successfully';
 
 			// Fetch investments with joined video data for the current user
 			const { data: investmentData, error: investmentsError } = await data.supabase
@@ -276,6 +274,10 @@
 		<div class="debug-item">
 			<strong>Message:</strong>
 			<span class="message">{debug.message}</span>
+		</div>
+		<div class="debug-item">
+			<strong>Balance: </strong>
+			<span class="count">${userBalance}</span>
 		</div>
 		{#if error}
 			<div class="debug-item error-item">
