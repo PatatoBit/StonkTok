@@ -1,6 +1,7 @@
 // Setup type definitions for built-in Supabase Runtime APIs
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { corsHeaders } from '../_shared/cors.ts';
+import { cleanVideoUrl } from '../_shared/video-utils.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 console.info('🧠 Listening to investments!');
 Deno.serve(async (req) => {
@@ -21,9 +22,20 @@ Deno.serve(async (req) => {
 		});
 	}
 
+	if (
+		Deno.env.get('SUPABASE_URL') === undefined ||
+		Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') === undefined
+	) {
+		console.error('Missing Supabase credentials');
+		return new Response('Missing Supabase credentials', {
+			status: 500,
+			headers: corsHeaders
+		});
+	}
+
 	const supabase = createClient(
-		Deno.env.get('SUPABASE_URL'),
-		Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+		Deno.env.get('SUPABASE_URL')!,
+		Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 	);
 
 	let videoUrl, amount;
@@ -54,25 +66,16 @@ Deno.serve(async (req) => {
 		});
 	}
 
-	// Normalize URL
-	let url;
+	// Clean and validate video URL
+	let processedVideoUrl: string;
+	let platform: 'tiktok' | 'instagram';
 	try {
-		url = new URL(videoUrl);
-		url.search = '';
+		const result = cleanVideoUrl(videoUrl);
+		processedVideoUrl = result.cleanUrl;
+		platform = result.platform;
 	} catch (err) {
-		console.error('Invalid videoUrl format:', videoUrl, err);
-		return new Response('Invalid video URL format', {
-			status: 400,
-			headers: corsHeaders
-		});
-	}
-	const cleanVideoUrl = url.toString();
-	let platform = null;
-	if (url.hostname.includes('tiktok.com')) platform = 'tiktok';
-	else if (url.hostname.includes('instagram.com')) platform = 'instagram';
-	else {
-		console.error('Unsupported platform:', url.hostname);
-		return new Response('Unsupported platform', {
+		console.error('Video URL processing error:', err);
+		return new Response((err as Error).message, {
 			status: 400,
 			headers: corsHeaders
 		});
@@ -82,7 +85,7 @@ Deno.serve(async (req) => {
 	const { data: fetchedVideo, error: fetchErr } = await supabase
 		.from('videos')
 		.select('id, current_likes, current_comments')
-		.eq('video_url', cleanVideoUrl)
+		.eq('video_url', processedVideoUrl)
 		.single();
 	let existingVideo = fetchedVideo;
 
@@ -98,7 +101,7 @@ Deno.serve(async (req) => {
 		const { data: insertedVideo, error: insertErr } = await supabase
 			.from('videos')
 			.insert({
-				video_url: cleanVideoUrl,
+				video_url: processedVideoUrl,
 				platform
 			})
 			.select()
@@ -115,6 +118,14 @@ Deno.serve(async (req) => {
 		existingVideo = insertedVideo;
 	} else {
 		console.info('Found existing video:', existingVideo);
+	}
+
+	if (!existingVideo) {
+		console.error('No video found or created');
+		return new Response('No video found or created', {
+			status: 404,
+			headers: corsHeaders
+		});
 	}
 
 	const investRes = await supabase

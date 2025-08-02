@@ -1,9 +1,17 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
 serve(async () => {
+	if (
+		Deno.env.get('SUPABASE_URL') === undefined ||
+		Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') === undefined
+	) {
+		return new Response(JSON.stringify({ error: 'Missing Supabase credentials' }), { status: 500 });
+	}
+
 	const supabase = createClient(
-		Deno.env.get('SUPABASE_URL'),
-		Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+		Deno.env.get('SUPABASE_URL')!,
+		Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 	);
 	try {
 		const { data: videos, error: fetchErr } = await supabase
