@@ -4,9 +4,16 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 console.log('Hello from Functions!');
 
 Deno.serve(async (req) => {
+	if (
+		Deno.env.get('SUPABASE_URL') === undefined ||
+		Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') === undefined
+	) {
+		return new Response(JSON.stringify({ error: 'Missing Supabase credentials' }), { status: 500 });
+	}
+
 	const supabase = createClient(
-		Deno.env.get('SUPABASE_URL'),
-		Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+		Deno.env.get('SUPABASE_URL')!,
+		Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 	);
 
 	const { video_id, investment_id } = await req.json();
