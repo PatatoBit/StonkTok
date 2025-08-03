@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
 		}
 
 		existingVideoId = newVideo.id;
-	} else if (existingError) {
+	} else if (existingError && existingError.code !== 'PGRST116') {
 		console.error('Error fetching existing video:', existingError);
 		return new Response(
 			JSON.stringify({
@@ -91,6 +91,7 @@ Deno.serve(async (req) => {
 
 	// If recent snapshot is within the last 3 hours, return it
 	if (recentSnapshots && recentSnapshots.length > 0) {
+		console.log('Recent snapshots found:', recentSnapshots);
 		const latestSnapshot = recentSnapshots[0];
 		const createdAt = new Date(latestSnapshot.created_at);
 		const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000);
@@ -100,44 +101,13 @@ Deno.serve(async (req) => {
 			return new Response(JSON.stringify(latestSnapshot), {
 				headers: { 'Content-Type': 'application/json' }
 			});
+		} else {
+			console.log('Snapshot is older than 3 hours, fetching fresh data');
 		}
-	} else if (snapshotsError && snapshotsError.code === 'PGRST116') {
-		// Video snapshot not found or no recent snapshots
-		console.log('No recent snapshots found, fetching from API');
-		// Fetch video data then return it, also store it into snapshots
-		const { data: videoData, error: fetchError } = await supabase.functions.invoke(
-			'fetch-video-stats',
-			{
-				body: {
-					videoUrl: cleanedVideoUrl.cleanUrl,
-					platform: cleanedVideoUrl.platform
-				}
-			}
-		);
+	}
 
-		if (fetchError) {
-			return new Response(
-				JSON.stringify({
-					error: 'Failed to fetch video data',
-					details: fetchError.message
-				}),
-				{ status: 500 }
-			);
-		}
-
-		// Store the fetched video data into snapshots
-		const { error: insertError } = await supabase
-			.from('video_snapshots')
-			.insert([{ video_id: existingVideoId, ...videoData }]);
-
-		if (insertError) {
-			console.error('Failed to store video snapshot:', insertError);
-		}
-
-		return new Response(JSON.stringify(videoData), {
-			headers: { 'Content-Type': 'application/json' }
-		});
-	} else if (snapshotsError) {
+	// Handle errors first
+	if (snapshotsError && snapshotsError.code !== 'PGRST116') {
 		console.error('Error fetching recent snapshots:', snapshotsError);
 		return new Response(
 			JSON.stringify({
@@ -148,6 +118,46 @@ Deno.serve(async (req) => {
 		);
 	}
 
-	// Default fallback response
-	return new Response(JSON.stringify({ error: 'Unexpected error' }), { status: 500 });
+	// Fetch fresh data if no recent snapshots, snapshots are old, or no snapshots found
+	console.log('No recent snapshots found or snapshots are old, fetching from API');
+	// Fetch video data then return it, also store it into snapshots
+	const { data: videoData, error: fetchError } = await supabase.functions.invoke(
+		'fetch-video-stats',
+		{
+			body: {
+				videoUrl: cleanedVideoUrl.cleanUrl,
+				platform: cleanedVideoUrl.platform
+			}
+		}
+	);
+
+	if (fetchError) {
+		return new Response(
+			JSON.stringify({
+				error: 'Failed to fetch video data',
+				details: fetchError.message
+			}),
+			{ status: 500 }
+		);
+	}
+
+	// Store the fetched video data into snapshots
+	const { error: insertError } = await supabase.from('video_snapshots').insert([
+		{
+			video_id: existingVideoId,
+			likes: videoData.likesCount,
+			comments: videoData.commentsCount,
+			created_at: new Date().toISOString()
+		}
+	]);
+
+	if (insertError) {
+		console.error('Failed to store video snapshot:', insertError);
+	}
+
+	console.log('Video data fetched and stored successfully:', videoData);
+
+	return new Response(JSON.stringify(videoData), {
+		headers: { 'Content-Type': 'application/json' }
+	});
 });
