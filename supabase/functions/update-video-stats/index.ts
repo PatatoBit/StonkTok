@@ -16,7 +16,9 @@ serve(async () => {
 	try {
 		const { data: videos, error: fetchErr } = await supabase
 			.from('videos')
-			.select('id, video_url, platform');
+			.select('id, video_url, platform')
+			.eq('tracking', true);
+
 		if (fetchErr) {
 			console.error('Error fetching videos:', fetchErr);
 			return new Response('Failed to fetch videos', {
