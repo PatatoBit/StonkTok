@@ -36,6 +36,7 @@ Deno.serve(async (req) => {
 		return new Response(JSON.stringify({ error: 'Invalid video URL' }), { status: 400 });
 	}
 
+	let existingVideoId: string | undefined;
 	// Check if the video URL is already in the database, if there is no video URL, it will create a new one, if there is, it will return the existing one
 	const { data: existingVideo, error: existingError } = await supabase
 		.from('videos')
@@ -45,6 +46,25 @@ Deno.serve(async (req) => {
 
 	if (existingError && existingError.code === 'PGRST116') {
 		console.log('No existing video found, creating a new one');
+
+		// Create a new video entry
+		const { data: newVideo, error: createError } = await supabase
+			.from('videos')
+			.insert([{ video_url: cleanedVideoUrl.cleanUrl, platform: 'tiktok' }])
+			.select('id, video_url, platform')
+			.single();
+
+		if (createError) {
+			return new Response(
+				JSON.stringify({
+					error: 'Failed to create new video entry',
+					details: createError.message
+				}),
+				{ status: 500 }
+			);
+		}
+
+		existingVideoId = newVideo.id;
 	} else if (existingError) {
 		console.error('Error fetching existing video:', existingError);
 		return new Response(
@@ -58,9 +78,8 @@ Deno.serve(async (req) => {
 
 	if (existingVideo) {
 		console.log('Found existing video:', existingVideo);
+		existingVideoId = existingVideo.id;
 	}
-
-	const existingVideoId = existingVideo?.id;
 
 	// Checks if there are recent snapshots in the database
 	const { data: recentSnapshots, error: snapshotsError } = await supabase
@@ -77,6 +96,7 @@ Deno.serve(async (req) => {
 		const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000);
 
 		if (createdAt > threeHoursAgo) {
+			console.log('Returning recent snapshot:', latestSnapshot);
 			return new Response(JSON.stringify(latestSnapshot), {
 				headers: { 'Content-Type': 'application/json' }
 			});
@@ -89,7 +109,8 @@ Deno.serve(async (req) => {
 			'fetch-video-stats',
 			{
 				body: {
-					videoUrl: cleanedVideoUrl.cleanUrl
+					videoUrl: cleanedVideoUrl.cleanUrl,
+					platform: cleanedVideoUrl.platform
 				}
 			}
 		);

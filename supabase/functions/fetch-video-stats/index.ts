@@ -4,7 +4,6 @@
 
 // Setup type definitions for built-in Supabase Runtime APIs
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 console.log('Fetch Video Stats Function Started!');
 
@@ -159,21 +158,12 @@ async function fetchInstagramStats(videoUrl: string, apiToken: string) {
 }
 
 Deno.serve(async (req) => {
-	if (
-		Deno.env.get('SUPABASE_URL') === undefined ||
-		Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') === undefined ||
-		Deno.env.get('APIFY_TOKEN') === undefined
-	) {
+	if (Deno.env.get('APIFY_TOKEN') === undefined) {
 		return new Response(JSON.stringify({ error: 'Missing Supabase or Apify credentials' }), {
 			status: 500,
 			headers: { 'Content-Type': 'application/json' }
 		});
 	}
-
-	const supabase = createClient(
-		Deno.env.get('SUPABASE_URL')!,
-		Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-	);
 
 	try {
 		const { videoUrl, platform } = await req.json();
@@ -209,8 +199,10 @@ Deno.serve(async (req) => {
 		let finalData;
 
 		if (detectedPlatform === 'tiktok') {
+			console.log(`Fetching TikTok stats for URL: ${videoUrl}`);
 			finalData = await fetchTikTokStats(videoUrl, apiToken);
 		} else if (detectedPlatform === 'instagram') {
+			console.log(`Fetching Instagram stats for URL: ${videoUrl}`);
 			finalData = await fetchInstagramStats(videoUrl, apiToken);
 		} else {
 			return new Response(
