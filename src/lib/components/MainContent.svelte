@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { signInWithEmail } from '$lib/auth';
+	import { cleanVideoUrl } from '$lib/utility';
 	import type { PageData } from '../../routes/$types';
 
 	export let data: PageData;
@@ -24,6 +25,15 @@
 	let showPreinvestPopup: boolean = false;
 	let videoData: any = null;
 	let isLoadingVideoData: boolean = false;
+	let isInvesting: boolean = false;
+
+	// Helper function to reset preinvest state
+	function resetPreinvestState() {
+		showPreinvestPopup = false;
+		videoData = null;
+		isLoadingVideoData = false;
+		isInvesting = false;
+	}
 
 	async function handlePreinvest() {
 		console.log('Pre-investing with video URL:', formVideoUrl);
@@ -33,6 +43,8 @@
 			return;
 		}
 
+		// Reset states before starting
+		videoData = null;
 		isLoadingVideoData = true;
 		showPreinvestPopup = true;
 
@@ -46,7 +58,7 @@
 			if (error) {
 				console.error('Error fetching video data:', error);
 				alert('Failed to fetch video data. Please try again.');
-				showPreinvestPopup = false;
+				resetPreinvestState();
 			} else {
 				console.log('Video data:', res);
 				videoData = res;
@@ -54,7 +66,7 @@
 		} catch (err) {
 			console.error('Unexpected error during preinvest:', err);
 			alert('Unexpected error occurred. Check console for details.');
-			showPreinvestPopup = false;
+			resetPreinvestState();
 		} finally {
 			isLoadingVideoData = false;
 		}
@@ -62,6 +74,8 @@
 
 	async function confirmInvestment() {
 		console.log('Confirming investment with video URL:', formVideoUrl, 'and amount:', amount);
+
+		isInvesting = true;
 
 		try {
 			const { data: res, error } = await data.supabase.functions.invoke('invest', {
@@ -79,22 +93,24 @@
 			} else {
 				alert('Investment successful!');
 
-				// Reset form fields and close popup
+				// Reset form fields and state completely
 				formVideoUrl = '';
 				amount = 1;
-				showPreinvestPopup = false;
-				videoData = null;
+				resetPreinvestState();
+				
+				// Invalidate all data to refresh the page state
 				await invalidateAll();
 			}
 		} catch (err) {
 			console.error('Unexpected error during function call:', err);
 			alert('Unexpected error occurred. Check console for details.');
+		} finally {
+			isInvesting = false;
 		}
 	}
 
 	function cancelInvestment() {
-		showPreinvestPopup = false;
-		videoData = null;
+		resetPreinvestState();
 	}
 </script>
 
@@ -130,6 +146,7 @@
 					required
 					bind:value={formVideoUrl}
 					class="form-input"
+					disabled={isLoadingVideoData || isInvesting}
 				/>
 				<input
 					type="number"
@@ -137,8 +154,15 @@
 					required
 					bind:value={amount}
 					class="form-input"
+					disabled={isLoadingVideoData || isInvesting}
 				/>
-				<button type="submit" class="btn btn-primary">Preview Investment</button>
+				<button 
+					type="submit" 
+					class="btn btn-primary" 
+					disabled={isLoadingVideoData || isInvesting}
+				>
+					{isLoadingVideoData ? 'Loading...' : 'Preview Investment'}
+				</button>
 			</form>
 		</div>
 
@@ -234,9 +258,11 @@
 			</div>
 
 			<div class="popup-footer">
-				<button class="btn btn-secondary" on:click={cancelInvestment}>Cancel</button>
+				<button class="btn btn-secondary" on:click={cancelInvestment} disabled={isInvesting}>Cancel</button>
 				{#if videoData && !isLoadingVideoData}
-					<button class="btn btn-primary" on:click={confirmInvestment}>Confirm Investment</button>
+					<button class="btn btn-primary" on:click={confirmInvestment} disabled={isInvesting}>
+						{isInvesting ? 'Investing...' : 'Confirm Investment'}
+					</button>
 				{/if}
 			</div>
 		</div>
