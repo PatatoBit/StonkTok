@@ -277,7 +277,7 @@
 		</div>
 		<div class="debug-item">
 			<strong>Balance: </strong>
-			<span class="count">${userBalance}</span>
+			<span class="count">${userBalance.toFixed(2)}</span>
 		</div>
 		{#if error}
 			<div class="debug-item error-item">

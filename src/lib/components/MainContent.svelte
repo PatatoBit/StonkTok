@@ -247,8 +247,7 @@
 							<div class="summary-item">
 								<span class="summary-label">Total cost:</span>
 								<span class="summary-value"
-									>{amount} &times; {videoPrice} = ${Math.round(amount * videoPrice * 100) /
-										100}</span
+									>${amount} &times; {videoPrice} = ${(amount * videoPrice).toFixed(2)}</span
 								>
 							</div>
 						</div>
