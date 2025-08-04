@@ -182,12 +182,13 @@ Deno.serve(async (req) => {
 	console.log(
 		'Deducting investment amount from user balance:',
 		userProfile.balance,
-		amount * videoPrice
+		// Round to two decimal places
+		Math.round(amount * videoPrice * 100) / 100
 	);
 
 	const { error: balanceErr } = await supabase
 		.from('profiles')
-		.update({ balance: userProfile.balance - amount * videoPrice })
+		.update({ balance: userProfile.balance - Math.round(amount * videoPrice * 100) / 100 })
 		.eq('id', user.id);
 	if (balanceErr) {
 		console.error('Error updating user balance:', balanceErr.message);
