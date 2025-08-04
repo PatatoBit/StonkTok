@@ -1,6 +1,7 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { cleanVideoUrl } from '../_shared/video-utils.ts';
+import { corsHeaders } from '../_shared/cors.ts';
 
 console.log('Preinvest function started');
 
@@ -12,13 +13,44 @@ console.log('Preinvest function started');
 // If there are recent snapshots, it returns the latest snapshot data.
 
 Deno.serve(async (req) => {
-	const { videoUrl } = await req.json();
+	console.log('Received request:', req.method, req.url);
+
+	// Handle CORS preflight requests
+	if (req.method === 'OPTIONS') {
+		return new Response('ok', {
+			headers: corsHeaders
+		});
+	}
+
+	if (req.method !== 'POST') {
+		console.error('Method Not Allowed:', req.method);
+		return new Response('Method Not Allowed', {
+			status: 405,
+			headers: corsHeaders
+		});
+	}
+
+	let videoUrl;
+	try {
+		const body = await req.json();
+		videoUrl = body.videoUrl;
+		console.log('Parsed video URL:', videoUrl);
+	} catch (err) {
+		console.error('Invalid JSON body:', err);
+		return new Response('Invalid JSON body', {
+			status: 400,
+			headers: corsHeaders
+		});
+	}
 
 	if (
 		Deno.env.get('SUPABASE_URL') === undefined ||
 		Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') === undefined
 	) {
-		return new Response(JSON.stringify({ error: 'Missing Supabase credentials' }), { status: 500 });
+		return new Response(JSON.stringify({ error: 'Missing Supabase credentials' }), {
+			status: 500,
+			headers: corsHeaders
+		});
 	}
 
 	const supabase = createClient(
@@ -27,13 +59,19 @@ Deno.serve(async (req) => {
 	);
 
 	if (!videoUrl) {
-		return new Response(JSON.stringify({ error: 'Missing videoUrl' }), { status: 400 });
+		return new Response(JSON.stringify({ error: 'Missing videoUrl' }), {
+			status: 400,
+			headers: corsHeaders
+		});
 	}
 
 	const cleanedVideoUrl = cleanVideoUrl(videoUrl);
 
 	if (!cleanedVideoUrl) {
-		return new Response(JSON.stringify({ error: 'Invalid video URL' }), { status: 400 });
+		return new Response(JSON.stringify({ error: 'Invalid video URL' }), {
+			status: 400,
+			headers: corsHeaders
+		});
 	}
 
 	let existingVideoId: string | undefined;
@@ -60,7 +98,10 @@ Deno.serve(async (req) => {
 					error: 'Failed to create new video entry',
 					details: createError.message
 				}),
-				{ status: 500 }
+				{
+					status: 500,
+					headers: corsHeaders
+				}
 			);
 		}
 
@@ -72,7 +113,10 @@ Deno.serve(async (req) => {
 				error: 'Failed to fetch existing video',
 				details: existingError.message
 			}),
-			{ status: 500 }
+			{
+				status: 500,
+				headers: corsHeaders
+			}
 		);
 	}
 
@@ -99,7 +143,10 @@ Deno.serve(async (req) => {
 		if (createdAt > threeHoursAgo) {
 			console.log('Returning recent snapshot:', latestSnapshot);
 			return new Response(JSON.stringify(latestSnapshot), {
-				headers: { 'Content-Type': 'application/json' }
+				headers: {
+					'Content-Type': 'application/json',
+					...corsHeaders
+				}
 			});
 		} else {
 			console.log('Snapshot is older than 3 hours, fetching fresh data');
@@ -114,7 +161,10 @@ Deno.serve(async (req) => {
 				error: 'Failed to fetch recent snapshots',
 				details: snapshotsError.message
 			}),
-			{ status: 500 }
+			{
+				status: 500,
+				headers: corsHeaders
+			}
 		);
 	}
 
@@ -137,7 +187,10 @@ Deno.serve(async (req) => {
 				error: 'Failed to fetch video data',
 				details: fetchError.message
 			}),
-			{ status: 500 }
+			{
+				status: 500,
+				headers: corsHeaders
+			}
 		);
 	}
 
@@ -158,6 +211,9 @@ Deno.serve(async (req) => {
 	console.log('Video data fetched and stored successfully:', videoData);
 
 	return new Response(JSON.stringify(videoData), {
-		headers: { 'Content-Type': 'application/json' }
+		headers: {
+			'Content-Type': 'application/json',
+			...corsHeaders
+		}
 	});
 });
