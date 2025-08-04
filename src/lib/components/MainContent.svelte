@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { signInWithEmail } from '$lib/auth';
-	import { cleanVideoUrl } from '$lib/utility';
+	import { cleanVideoUrl, formatVideoUrlForDisplay } from '$lib/utility';
 	import type { PageData } from '../../routes/$types';
 
 	export let data: PageData;
@@ -26,6 +26,8 @@
 	let videoData: any = null;
 	let isLoadingVideoData: boolean = false;
 	let isInvesting: boolean = false;
+
+	let videoPrice: number = 10;
 
 	// Helper function to reset preinvest state
 	function resetPreinvestState() {
@@ -62,6 +64,7 @@
 			} else {
 				console.log('Video data:', res);
 				videoData = res;
+				videoPrice = res.likes / 1000; // Example: price based on likes, adjust as needed
 			}
 		} catch (err) {
 			console.error('Unexpected error during preinvest:', err);
@@ -97,7 +100,7 @@
 				formVideoUrl = '';
 				amount = 1;
 				resetPreinvestState();
-				
+
 				// Invalidate all data to refresh the page state
 				await invalidateAll();
 			}
@@ -156,11 +159,7 @@
 					class="form-input"
 					disabled={isLoadingVideoData || isInvesting}
 				/>
-				<button 
-					type="submit" 
-					class="btn btn-primary" 
-					disabled={isLoadingVideoData || isInvesting}
-				>
+				<button type="submit" class="btn btn-primary" disabled={isLoadingVideoData || isInvesting}>
 					{isLoadingVideoData ? 'Loading...' : 'Preview Investment'}
 				</button>
 			</form>
@@ -207,7 +206,7 @@
 			on:keydown={() => {}}
 		>
 			<div class="popup-header">
-				<h3>Investment Preview</h3>
+				<h3>Confirm Investment</h3>
 				<button class="close-btn" on:click={cancelInvestment}>&times;</button>
 			</div>
 
@@ -228,29 +227,28 @@
 								<span class="stat-label">Comments:</span>
 								<span class="stat-value">{videoData.comments ? videoData.comments : 'N/A'}</span>
 							</div>
-							{#if videoData.viewsCount}
-								<div class="stat-item">
-									<span class="stat-label">Views:</span>
-									<span class="stat-value">{videoData.viewsCount.toLocaleString()}</span>
-								</div>
-							{/if}
-							{#if videoData.sharesCount}
-								<div class="stat-item">
-									<span class="stat-label">Shares:</span>
-									<span class="stat-value">{videoData.sharesCount.toLocaleString()}</span>
-								</div>
-							{/if}
+
+							<div class="stat-item">
+								<span class="stat-label">Shares remaining:</span>
+								<span class="stat-value"
+									>{videoData.total_shares ? videoData.total_shares : 'N/A'} / {videoData.available_shares
+										? videoData.available_shares
+										: 'N/A'}</span
+								>
+							</div>
 						</div>
 
 						<div class="investment-summary">
 							<h4>Investment Summary</h4>
 							<div class="summary-item">
 								<span class="summary-label">Video URL:</span>
-								<span class="summary-value">{formVideoUrl}</span>
+								<span class="summary-value">{formatVideoUrlForDisplay(formVideoUrl)}</span>
 							</div>
 							<div class="summary-item">
-								<span class="summary-label">Investment Amount:</span>
-								<span class="summary-value">${amount}</span>
+								<span class="summary-label">Total cost:</span>
+								<span class="summary-value"
+									>{amount} &times; {videoPrice} = ${amount * videoPrice}</span
+								>
 							</div>
 						</div>
 					</div>
@@ -258,7 +256,9 @@
 			</div>
 
 			<div class="popup-footer">
-				<button class="btn btn-secondary" on:click={cancelInvestment} disabled={isInvesting}>Cancel</button>
+				<button class="btn btn-secondary" on:click={cancelInvestment} disabled={isInvesting}
+					>Cancel</button
+				>
 				{#if videoData && !isLoadingVideoData}
 					<button class="btn btn-primary" on:click={confirmInvestment} disabled={isInvesting}>
 						{isInvesting ? 'Investing...' : 'Confirm Investment'}

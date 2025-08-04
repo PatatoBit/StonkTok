@@ -53,3 +53,19 @@ export function cleanVideoUrl(videoUrl: string): VideoUrlResult {
 		platform
 	};
 }
+
+export function formatVideoUrlForDisplay(videoUrl: string): string {
+	try {
+		const url = new URL(videoUrl);
+		let hostname = url.hostname;
+
+		// Remove 'www.' prefix if present
+		hostname = hostname.replace(/^www\./, '');
+
+		// Combine hostname and pathname
+		return hostname + url.pathname;
+	} catch {
+		// If URL parsing fails, return the original URL
+		return videoUrl;
+	}
+}
