@@ -68,11 +68,9 @@ Deno.serve(async (req) => {
 
 	// Clean and validate video URL
 	let processedVideoUrl: string;
-	let platform: 'tiktok' | 'instagram';
 	try {
 		const result = cleanVideoUrl(videoUrl);
 		processedVideoUrl = result.cleanUrl;
-		platform = result.platform;
 	} catch (err) {
 		console.error('Video URL processing error:', err);
 		return new Response((err as Error).message, {
@@ -81,79 +79,134 @@ Deno.serve(async (req) => {
 		});
 	}
 
-	// Check if video already exists, if not, insert it
-	const { data: fetchedVideo, error: fetchErr } = await supabase
+	// Calculate video price based on likes
+	const { data: videoData, error: videoErr } = await supabase
 		.from('videos')
-		.select('id, current_likes, current_comments')
+		.select('id, current_likes, current_comments, total_shares, available_shares')
 		.eq('video_url', processedVideoUrl)
 		.single();
-	let existingVideo = fetchedVideo;
-
-	// Handle fetch errors or if video does not exist
-	if (fetchErr && fetchErr.code !== 'PGRST116') {
-		console.error('Error fetching video:', fetchErr);
-		return new Response('Failed to fetch video', {
-			status: 500,
-			headers: corsHeaders
-		});
-	} else if ((fetchErr && fetchErr.code === 'PGRST116') || !existingVideo) {
-		// Insert new video if it doesn't exist
-		const { data: insertedVideo, error: insertErr } = await supabase
-			.from('videos')
-			.insert({
-				video_url: processedVideoUrl,
-				platform
-			})
-			.select()
-			.single();
-
-		if (insertErr) {
-			console.error('Failed to insert new video:', insertErr);
-			return new Response(JSON.stringify({ error: 'Failed to insert video' }), {
-				status: 500,
-				headers: corsHeaders
-			});
-		}
-		console.info('Inserted new video:', insertedVideo);
-		existingVideo = insertedVideo;
-	} else {
-		console.info('Found existing video:', existingVideo);
-	}
-
-	if (!existingVideo) {
-		console.error('No video found or created');
-		return new Response('No video found or created', {
+	if (videoErr || !videoData) {
+		console.error(
+			'Video not found or error fetching video data:',
+			videoErr?.message || 'No video data'
+		);
+		return new Response('Video not found', {
 			status: 404,
 			headers: corsHeaders
 		});
 	}
 
-	const investRes = await supabase
-		.from('investments')
-		.insert({
-			user_id: user.id,
-			video_id: existingVideo.id,
-			amount,
-			like_count_at_investment: existingVideo.current_likes,
-			comment_count_at_investment: existingVideo.current_comments
-		})
-		.select()
+	const videoPrice = videoData.current_likes / 1000; // Example: price based on likes, adjust as needed
+	if (!videoPrice || videoPrice <= 0) {
+		console.error('Invalid video price:', videoPrice);
+		return new Response('Invalid video price', {
+			status: 400,
+			headers: corsHeaders
+		});
+	}
+
+	// Check if user balance is sufficient
+	const { data: userProfile, error: profileErr } = await supabase
+		.from('profiles')
+		.select('id, balance')
+		.eq('id', user.id)
 		.single();
-	if (investRes.error) {
-		console.error('Investment insertion failed:', investRes.error);
-		return new Response(JSON.stringify(investRes.error), {
+
+	if (profileErr || !userProfile) {
+		console.error(
+			'User profile not found or error fetching profile:',
+			profileErr?.message || 'No profile data'
+		);
+		return new Response('User profile not found', {
+			status: 404,
+			headers: corsHeaders
+		});
+	}
+
+	// Check if the user has enough balance
+	if (amount <= 0 || amount * videoPrice > userProfile.balance) {
+		console.error('Invalid investment amount:', amount);
+		return new Response('Invalid investment amount', {
+			status: 400,
+			headers: corsHeaders
+		});
+	}
+
+	// Check if the video has enough shares available
+	if (videoData.available_shares < amount) {
+		console.error('Not enough shares available for investment:', videoData.available_shares);
+		return new Response('Not enough shares available', {
+			status: 400,
+			headers: corsHeaders
+		});
+	}
+
+	// Investment logic
+	// Create investment record
+	const { data: investRes, error: investErr } = await supabase.from('investments').insert({
+		user_id: user.id,
+		video_id: videoData.id,
+		amount,
+		like_count_at_investment: videoData.current_likes,
+		comment_count_at_investment: videoData.current_comments || 0
+	});
+
+	if (investErr) {
+		console.error('Error creating investment record:', investErr.message);
+		return new Response('Error creating investment record', {
 			status: 500,
 			headers: corsHeaders
 		});
 	}
-	console.log('Investment recorded:', investRes.data);
 
-	supabase.functions.invoke('update-single-video', {
-		body: {
-			video_id: existingVideo.id,
-			investment_id: investRes.data.id
-		}
-	});
+	// Update tracking status and remaining shares
+	const { data: existingVideo, error: videoUpdateErr } = await supabase
+		.from('videos')
+		.update({
+			available_shares: videoData.available_shares - amount,
+			tracking: true
+		})
+		.eq('id', videoData.id)
+		.select('id')
+		.single();
+
+	if (videoUpdateErr || !existingVideo) {
+		console.error('Error updating video shares:', videoUpdateErr?.message || 'No video data');
+		return new Response('Error updating video shares', {
+			status: 500,
+			headers: corsHeaders
+		});
+	}
+
+	// Deduct the investment amount from the user's balance
+	console.log(
+		'Deducting investment amount from user balance:',
+		userProfile.balance,
+		amount * videoPrice
+	);
+
+	const { error: balanceErr } = await supabase
+		.from('profiles')
+		.update({ balance: userProfile.balance - amount * videoPrice })
+		.eq('id', user.id);
+	if (balanceErr) {
+		console.error('Error updating user balance:', balanceErr.message);
+		// Rollback investment creation if balance update fails
+		await supabase.from('investments').delete().eq('id', investRes.data[0].id);
+		console.error('Rolled back investment due to balance update failure');
+
+		return new Response('Error updating user balance', {
+			status: 500,
+			headers: corsHeaders
+		});
+	}
+
+	// supabase.functions.invoke('update-single-video', {
+	// 	body: {
+	// 		video_id: existingVideo.id,
+	// 		investment_id: investRes.data.id
+	// 	}
+	// });
 
 	return new Response(
 		JSON.stringify({
