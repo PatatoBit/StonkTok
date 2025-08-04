@@ -1,8 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { signInWithEmail } from '$lib/auth';
-	import { supabase } from '$lib/supabaseClient';
-	import { cleanVideoUrl } from '$lib/utility';
 	import type { PageData } from '../../routes/$types';
 
 	export let data: PageData;
