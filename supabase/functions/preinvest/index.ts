@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
 		// Create a new video entry
 		const { data: newVideo, error: createError } = await supabase
 			.from('videos')
-			.insert([{ video_url: cleanedVideoUrl.cleanUrl, platform: 'tiktok' }])
+			.insert([{ video_url: cleanedVideoUrl.cleanUrl, platform: cleanedVideoUrl.platform }])
 			.select('id, video_url, platform')
 			.single();
 
