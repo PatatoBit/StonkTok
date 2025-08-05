@@ -142,12 +142,21 @@ Deno.serve(async (req) => {
 
 		if (createdAt > threeHoursAgo) {
 			console.log('Returning recent snapshot:', latestSnapshot);
-			return new Response(JSON.stringify(latestSnapshot), {
-				headers: {
-					'Content-Type': 'application/json',
-					...corsHeaders
+			// Snapshot likes and comments are unliked video stats likesCount and commentsCount
+			return new Response(
+				JSON.stringify({
+					videoId: existingVideoId,
+					likesCount: latestSnapshot.likes,
+					commentsCount: latestSnapshot.comments,
+					createdAt: latestSnapshot.created_at
+				}),
+				{
+					headers: {
+						'Content-Type': 'application/json',
+						...corsHeaders
+					}
 				}
-			});
+			);
 		} else {
 			console.log('Snapshot is older than 3 hours, fetching fresh data');
 		}
@@ -208,6 +217,30 @@ Deno.serve(async (req) => {
 		console.error('Failed to store video snapshot:', insertError);
 	}
 
+	// Update video data with the fetched stats
+	const { error: updateError } = await supabase
+		.from('videos')
+		.update({
+			current_likes: videoData.likesCount,
+			current_comments: videoData.commentsCount
+		})
+		.eq('id', existingVideoId);
+
+	if (updateError) {
+		console.error('Failed to update video data:', updateError);
+		return new Response(
+			JSON.stringify({
+				error: 'Failed to update video data',
+				details: updateError.message
+			}),
+			{
+				status: 500,
+				headers: corsHeaders
+			}
+		);
+	}
+
+	console.log('Video data updated successfully:', videoData);
 	console.log('Video data fetched and stored successfully:', videoData);
 
 	return new Response(JSON.stringify(videoData), {

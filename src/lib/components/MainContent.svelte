@@ -64,7 +64,7 @@
 			} else {
 				console.log('Video data:', res);
 				videoData = res;
-				videoPrice = res.likes / 1000; // Example: price based on likes, adjust as needed
+				videoPrice = res.likesCount / 1000; // Example: price based on likes, adjust as needed
 			}
 		} catch (err) {
 			console.error('Unexpected error during preinvest:', err);
@@ -221,11 +221,14 @@
 						<div class="video-stats">
 							<div class="stat-item">
 								<span class="stat-label">Likes:</span>
-								<span class="stat-value">{videoData.likes ? videoData.likes : 'N/A'}</span>
+								<span class="stat-value">{videoData.likesCount ? videoData.likesCount : 'N/A'}</span
+								>
 							</div>
 							<div class="stat-item">
 								<span class="stat-label">Comments:</span>
-								<span class="stat-value">{videoData.comments ? videoData.comments : 'N/A'}</span>
+								<span class="stat-value"
+									>{videoData.commentsCount ? videoData.commentsCount : 'N/A'}</span
+								>
 							</div>
 
 							<div class="stat-item">
