@@ -123,24 +123,14 @@
 			const likesCanvas = document.querySelector(
 				`.investment-likes-${investment.id}`
 			) as HTMLCanvasElement;
-			const commentsCanvas = document.querySelector(
-				`.investment-comments-${investment.id}`
-			) as HTMLCanvasElement;
 
 			if (likesCanvas) {
-				createInvestmentChart(likesCanvas, investment, 'likes');
-			}
-			if (commentsCanvas) {
-				createInvestmentChart(commentsCanvas, investment, 'comments');
+				createInvestmentChart(likesCanvas, investment);
 			}
 		});
 	}
 
-	function createInvestmentChart(
-		canvas: HTMLCanvasElement,
-		investment: Investment,
-		chartType: 'likes' | 'comments'
-	) {
+	function createInvestmentChart(canvas: HTMLCanvasElement, investment: Investment) {
 		// Get snapshots for this specific video
 		const investmentSnapshots = videoSnapshots.filter(
 			(snapshot) => snapshot.video_id === investment.video_id
@@ -171,15 +161,8 @@
 			})
 		);
 
-		const data =
-			chartType === 'likes'
-				? investmentSnapshots.map((snapshot) => snapshot.likes)
-				: investmentSnapshots.map((snapshot) => snapshot.comments);
-
-		const chartColor = chartType === 'likes' ? 'rgb(255, 99, 132)' : 'rgb(54, 162, 235)';
-		const chartBgColor =
-			chartType === 'likes' ? 'rgba(255, 99, 132, 0.2)' : 'rgba(54, 162, 235, 0.2)';
-		const chartLabel = chartType === 'likes' ? 'Likes' : 'Comments';
+		const likesData = investmentSnapshots.map((snapshot) => snapshot.likes);
+		const priceData = investmentSnapshots.map((snapshot) => snapshot.likes / 1000);
 
 		const config: ChartConfiguration = {
 			type: 'line',
@@ -187,12 +170,22 @@
 				labels: labels,
 				datasets: [
 					{
-						label: chartLabel,
-						data: data,
-						borderColor: chartColor,
-						backgroundColor: chartBgColor,
+						label: 'Likes',
+						data: likesData,
+						borderColor: 'rgb(255, 99, 132)',
+						backgroundColor: 'rgba(255, 99, 132, 0.1)',
 						tension: 0.1,
-						fill: true
+						fill: true,
+						yAxisID: 'y'
+					},
+					{
+						label: 'Price ($)',
+						data: priceData,
+						borderColor: 'rgb(54, 162, 235)',
+						backgroundColor: 'rgba(54, 162, 235, 0.1)',
+						tension: 0.1,
+						fill: false,
+						yAxisID: 'y1'
 					}
 				]
 			},
@@ -205,20 +198,50 @@
 				plugins: {
 					title: {
 						display: true,
-						text: `${chartLabel} - ${investment.video?.creator_handle || 'Unknown Creator'} ($${investment.amount})`
+						text: `Performance - ${investment.amount} shares @ $${roundToTwoDecimals(investment.like_count_at_investment / 1000)}`
 					},
 					legend: {
-						display: false
+						display: true,
+						position: 'top'
 					}
 				},
 				scales: {
 					y: {
+						type: 'linear',
+						display: true,
+						position: 'left',
 						beginAtZero: false,
-						suggestedMin: Math.min(...data) * 0.9,
-						suggestedMax: Math.max(...data) * 1.1,
+						suggestedMin: Math.min(...likesData) * 0.9,
+						suggestedMax: Math.max(...likesData) * 1.1,
 						title: {
 							display: true,
-							text: chartLabel
+							text: 'Likes',
+							color: 'rgb(255, 99, 132)'
+						},
+						ticks: {
+							color: 'rgb(255, 99, 132)'
+						}
+					},
+					y1: {
+						type: 'linear',
+						display: true,
+						position: 'right',
+						beginAtZero: false,
+						suggestedMin: Math.min(...priceData) * 0.9,
+						suggestedMax: Math.max(...priceData) * 1.1,
+						title: {
+							display: true,
+							text: 'Price ($)',
+							color: 'rgb(54, 162, 235)'
+						},
+						ticks: {
+							color: 'rgb(54, 162, 235)',
+							callback: function (value) {
+								return '$' + Number(value).toFixed(3);
+							}
+						},
+						grid: {
+							drawOnChartArea: false
 						}
 					},
 					x: {
@@ -277,7 +300,12 @@
 		</div>
 		<div class="debug-item">
 			<strong>Balance: </strong>
-			<span class="count">${userBalance.toFixed(2)}</span>
+			<span class="count"
+				>${userBalance.toLocaleString(undefined, {
+					minimumFractionDigits: 2,
+					maximumFractionDigits: 2
+				})}</span
+			>
 		</div>
 		{#if error}
 			<div class="debug-item error-item">
@@ -304,51 +332,105 @@
 			{#each investments as investment}
 				<div class="investment-card">
 					<div class="investment-info">
-						<h3>Investment #{investment.id.slice(-8)}</h3>
-						<p><strong>Amount:</strong> ${investment.amount}</p>
-						<p>
-							<strong>ROI:</strong>
-							<span class="roi {calculateROI(investment).isPositive ? 'positive' : 'negative'}">
-								{calculateROI(investment).value}
-							</span>
-						</p>
-						<p>
-							<strong
-								>Profit:
+						<div class="investment-header">
+							<h3>Investment #{investment.id.slice(-8)}</h3>
+							<div class="platform-icon">
+								<img
+									src="https://via.placeholder.com/24x24/007bff/ffffff?text={investment.video?.platform
+										?.charAt(0)
+										.toUpperCase() || 'P'}"
+									alt="{investment.video?.platform || 'Platform'} icon"
+									title={investment.video?.platform || 'Unknown Platform'}
+								/>
+							</div>
+						</div>
+
+						<div class="investment-metrics">
+							<div class="metric-row">
+								<span class="metric-label">Shares Bought:</span>
+								<span class="metric-value">{investment.amount.toLocaleString()}</span>
+							</div>
+
+							<div class="metric-row">
+								<span class="metric-label">Price at Investment:</span>
+								<span class="metric-value"
+									>${roundToTwoDecimals(
+										investment.like_count_at_investment / 1000
+									).toLocaleString()}</span
+								>
+							</div>
+
+							<div class="metric-row">
+								<span class="metric-label">Current Price:</span>
+								<span class="metric-value"
+									>${roundToTwoDecimals(
+										(investment.video?.current_likes || 0) / 1000
+									).toLocaleString()}</span
+								>
+							</div>
+
+							<div class="metric-row">
+								<span class="metric-label">ROI:</span>
+								<span class="roi {calculateROI(investment).isPositive ? 'positive' : 'negative'}">
+									{calculateROI(investment).value}
+								</span>
+							</div>
+
+							<div class="metric-row profit-row">
+								<span class="metric-label">You spent: </span>
+								<span class="metric-value"
+									>${roundToTwoDecimals(
+										(investment.like_count_at_investment / 1000) * investment.amount
+									).toLocaleString()}</span
+								>
+							</div>
+
+							<div class="metric-row">
+								<span class="metric-label">Current value: </span>
+								<span class="metric-value"
+									>${roundToTwoDecimals(
+										((investment.video?.current_likes || 0) / 1000) * investment.amount
+									).toLocaleString()}</span
+								>
+							</div>
+
+							<div class="metric-row profit-row">
+								<span class="metric-label">Profit:</span>
 								<span class="roi {calculateROI(investment).isPositive ? 'positive' : 'negative'}">
 									${investment.amount
 										? roundToTwoDecimals(
-												(investment.amount * calculateROI(investment).percentage) / 100
-											)
+												((investment.video?.current_likes || 0) / 1000 -
+													investment.like_count_at_investment / 1000) *
+													investment.amount
+											).toLocaleString()
 										: 'N/A'}
 								</span>
-							</strong>
-						</p>
-						<p>
-							<strong>Video URL:</strong>
-							<a href={investment.video?.video_url} target="_blank" rel="noopener noreferrer">
-								{investment.video?.video_url || 'N/A'}
-							</a>
-						</p>
-						<p><strong>Platform:</strong> {investment.video?.platform || 'N/A'}</p>
-						<p><strong>Creator:</strong> {investment.video?.creator_handle || 'N/A'}</p>
-						<p>
-							<strong>Invested:</strong>
-							{new Date(investment.invested_at).toLocaleDateString()}
-						</p>
-						<p><strong>Initial Likes:</strong> {investment.like_count_at_investment}</p>
-						<p><strong>Initial Comments:</strong> {investment.comment_count_at_investment}</p>
-						<p><strong>Current Likes:</strong> {investment.video?.current_likes || 'N/A'}</p>
-						<p><strong>Current Comments:</strong> {investment.video?.current_comments || 'N/A'}</p>
+							</div>
+						</div>
+
+						<div class="likes-info">
+							<div class="likes-row">
+								<span
+									>Initial Likes: <strong
+										>{investment.like_count_at_investment.toLocaleString()}</strong
+									></span
+								>
+								<span
+									>Current Likes: <strong
+										>{(investment.video?.current_likes || 0).toLocaleString()}</strong
+									></span
+								>
+							</div>
+						</div>
+
+						<div class="investment-date">
+							<small>Invested: {new Date(investment.invested_at).toLocaleDateString()}</small>
+						</div>
 					</div>
 					<div class="charts-container">
 						<div class="chart-section">
 							<h4>Likes Over Time</h4>
 							<canvas class="investment-likes-{investment.id}"></canvas>
-						</div>
-						<div class="chart-section">
-							<h4>Comments Over Time</h4>
-							<canvas class="investment-comments-{investment.id}"></canvas>
 						</div>
 					</div>
 				</div>
@@ -473,25 +555,80 @@
 		margin-bottom: 1rem;
 	}
 
-	.investment-info h3 {
-		margin: 0 0 0.5rem 0;
+	.investment-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 1rem;
+		padding-bottom: 0.5rem;
+		border-bottom: 1px solid #e9ecef;
+	}
+
+	.investment-header h3 {
+		margin: 0;
+		color: #333;
+		font-size: 1.1rem;
+	}
+
+	.platform-icon {
+		display: flex;
+		align-items: center;
+	}
+
+	.platform-icon img {
+		width: 24px;
+		height: 24px;
+		border-radius: 4px;
+	}
+
+	.investment-metrics {
+		display: grid;
+		gap: 0.5rem;
+		margin-bottom: 1rem;
+	}
+
+	.metric-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 0.25rem 0;
+	}
+
+	.metric-label {
+		color: #666;
+		font-weight: 500;
+	}
+
+	.metric-value {
+		font-weight: bold;
 		color: #333;
 	}
 
-	.investment-info p {
-		margin: 0.25rem 0;
+	.profit-row {
+		border-top: 1px solid #e9ecef;
+		padding-top: 0.75rem;
+		margin-top: 0.5rem;
+		font-size: 1.05rem;
+	}
+
+	.likes-info {
+		background: #f8f9fa;
+		padding: 0.75rem;
+		border-radius: 6px;
+		margin-bottom: 0.75rem;
+	}
+
+	.likes-row {
+		display: flex;
+		justify-content: space-between;
 		font-size: 0.9rem;
 		color: #666;
 	}
 
-	.investment-info a {
-		color: #0066cc;
-		text-decoration: none;
-		word-break: break-all;
-	}
-
-	.investment-info a:hover {
-		text-decoration: underline;
+	.investment-date {
+		text-align: center;
+		color: #999;
+		font-style: italic;
 	}
 
 	.roi {
@@ -507,8 +644,6 @@
 	}
 
 	.charts-container {
-		display: grid;
-		gap: 1.5rem;
 		margin-top: 1rem;
 	}
 
@@ -527,8 +662,8 @@
 
 	canvas {
 		width: 100% !important;
-		height: 250px !important;
-		max-height: 250px;
+		height: 300px !important;
+		max-height: 300px;
 	}
 
 	@media (min-width: 768px) {
@@ -544,8 +679,10 @@
 			grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
 		}
 
-		.charts-container {
+		.likes-row {
+			display: grid;
 			grid-template-columns: 1fr 1fr;
+			gap: 1rem;
 		}
 	}
 
