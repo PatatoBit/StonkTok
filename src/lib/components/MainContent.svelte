@@ -29,6 +29,41 @@
 
 	let videoPrice: number = 10;
 
+	// Helper function to format video stats
+	function getVideoStats(data: any) {
+		const stats = [
+			{ label: 'Likes', value: formatNumber(data.likesCount) },
+			{ label: 'Comments', value: formatNumber(data.commentsCount) },
+			{ label: 'Views', value: formatNumber(data.viewsCount) },
+			{ label: 'Shares', value: formatNumber(data.sharesCount) },
+			{ label: 'Duration', value: data.duration ? `${data.duration}s` : 'N/A' },
+			{ label: 'Upload Date', value: data.uploadDate || 'N/A' }
+		];
+
+		// Add shares remaining if available
+		if (data.availableShares !== undefined || data.totalShares !== undefined) {
+			stats.push({
+				label: 'Shares Available',
+				value: `${formatNumber(data.availableShares)} / ${formatNumber(data.totalShares)}`
+			});
+		}
+
+		// Filter out stats that are null/undefined and return
+		return stats.filter((stat) => stat.value !== 'N/A' && stat.value !== 'null / null');
+	}
+
+	// Helper function to format numbers
+	function formatNumber(num: number | null | undefined): string {
+		if (num === null || num === undefined || isNaN(num)) return 'N/A';
+
+		if (num >= 1000000) {
+			return (num / 1000000).toFixed(1) + 'M';
+		} else if (num >= 1000) {
+			return (num / 1000).toFixed(1) + 'K';
+		}
+		return num.toString();
+	}
+
 	// Helper function to reset preinvest state
 	function resetPreinvestState() {
 		showPreinvestPopup = false;
@@ -218,40 +253,36 @@
 				{:else if videoData}
 					<div class="video-info">
 						<h4>Video Details</h4>
-						<div class="video-stats">
-							<div class="stat-item">
-								<span class="stat-label">Likes:</span>
-								<span class="stat-value">{videoData.likesCount ? videoData.likesCount : 'N/A'}</span
-								>
-							</div>
-							<div class="stat-item">
-								<span class="stat-label">Comments:</span>
-								<span class="stat-value"
-									>{videoData.commentsCount ? videoData.commentsCount : 'N/A'}</span
-								>
-							</div>
-
-							<div class="stat-item">
-								<span class="stat-label">Shares remaining:</span>
-								<span class="stat-value"
-									>{videoData.availableShares ? videoData.availableShares : 'N/A'} / {videoData.totalShares
-										? videoData.totalShares
-										: 'N/A'}</span
-								>
-							</div>
+						<div class="video-stats-grid">
+							{#each getVideoStats(videoData) as stat}
+								<div class="stat-card">
+									<span class="stat-label">{stat.label}:</span>
+									<span class="stat-value">{stat.value}</span>
+								</div>
+							{/each}
 						</div>
 
 						<div class="investment-summary">
 							<h4>Investment Summary</h4>
-							<div class="summary-item">
-								<span class="summary-label">Video URL:</span>
-								<span class="summary-value">{formatVideoUrlForDisplay(formVideoUrl)}</span>
-							</div>
-							<div class="summary-item">
-								<span class="summary-label">Total cost:</span>
-								<span class="summary-value"
-									>${amount} &times; {videoPrice} = ${(amount * videoPrice).toFixed(2)}</span
-								>
+							<div class="summary-grid">
+								<div class="summary-card">
+									<span class="summary-label">Video URL:</span>
+									<span class="summary-value" title={formVideoUrl}>
+										{formatVideoUrlForDisplay(formVideoUrl)}
+									</span>
+								</div>
+								<div class="summary-card">
+									<span class="summary-label">Price per share:</span>
+									<span class="summary-value">${videoPrice.toFixed(2)}</span>
+								</div>
+								<div class="summary-card">
+									<span class="summary-label">Shares to buy:</span>
+									<span class="summary-value">{amount}</span>
+								</div>
+								<div class="summary-card total-cost">
+									<span class="summary-label">Total cost:</span>
+									<span class="summary-value">${(amount * videoPrice).toFixed(2)}</span>
+								</div>
 							</div>
 						</div>
 					</div>
@@ -271,3 +302,140 @@
 		</div>
 	</div>
 {/if}
+
+<style>
+	/* Video stats grid layout */
+	.video-stats-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+		gap: 1rem;
+		margin-bottom: 1.5rem;
+	}
+
+	.stat-card {
+		background: rgba(0, 0, 0, 0.05);
+		border: 1px solid rgba(0, 0, 0, 0.1);
+		border-radius: 8px;
+		padding: 1rem;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		text-align: center;
+		transition: all 0.2s ease;
+	}
+
+	.stat-card:hover {
+		background: rgba(0, 0, 0, 0.08);
+		border-color: rgba(0, 0, 0, 0.2);
+		transform: translateY(-2px);
+	}
+
+	.stat-label {
+		font-size: 0.875rem;
+		color: rgba(0, 0, 0, 0.6);
+		font-weight: 500;
+		margin-bottom: 0.25rem;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	.stat-value {
+		font-size: 1.25rem;
+		font-weight: 700;
+		color: #333;
+	}
+
+	/* Investment summary grid */
+	.summary-grid {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 0.75rem;
+	}
+
+	.summary-card {
+		background: rgba(0, 0, 0, 0.03);
+		border: 1px solid rgba(0, 0, 0, 0.1);
+		border-radius: 6px;
+		padding: 0.875rem;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+	}
+
+	.summary-card.total-cost {
+		background: rgba(34, 197, 94, 0.1);
+		border-color: rgba(34, 197, 94, 0.3);
+		font-weight: 600;
+	}
+
+	.summary-label {
+		font-size: 0.875rem;
+		color: rgba(0, 0, 0, 0.7);
+		font-weight: 500;
+	}
+
+	.summary-value {
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: #333;
+		text-align: right;
+		max-width: 60%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.total-cost .summary-value {
+		color: #16a34a;
+		font-size: 1rem;
+	}
+
+	/* Video info container */
+	.video-info {
+		width: 100%;
+		max-width: 600px;
+	}
+
+	.video-info h4 {
+		margin-bottom: 1rem;
+		color: #333;
+		font-size: 1.125rem;
+		font-weight: 600;
+	}
+
+	/* Responsive adjustments */
+	@media (max-width: 640px) {
+		.video-stats-grid {
+			grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+			gap: 0.75rem;
+		}
+
+		.stat-card {
+			padding: 0.75rem;
+		}
+
+		.stat-value {
+			font-size: 1.125rem;
+		}
+	}
+
+	@media (max-width: 480px) {
+		.video-stats-grid {
+			grid-template-columns: 1fr 1fr;
+			gap: 0.5rem;
+		}
+
+		.stat-card {
+			padding: 0.625rem;
+		}
+
+		.stat-value {
+			font-size: 1rem;
+		}
+
+		.summary-value {
+			max-width: 50%;
+			font-size: 0.8125rem;
+		}
+	}
+</style>
