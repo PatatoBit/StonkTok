@@ -336,9 +336,9 @@
 							<h3>Investment #{investment.id.slice(-8)}</h3>
 							<div class="platform-icon">
 								<img
-									src="https://via.placeholder.com/24x24/007bff/ffffff?text={investment.video?.platform
-										?.charAt(0)
-										.toUpperCase() || 'P'}"
+									src={investment.video?.platform == 'tiktok'
+										? '/icons/tiktok.svg'
+										: 'icons/instagram.svg'}
 									alt="{investment.video?.platform || 'Platform'} icon"
 									title={investment.video?.platform || 'Unknown Platform'}
 								/>
