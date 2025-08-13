@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
 	// Check if the video URL is already in the database, if there is no video URL, it will create a new one, if there is, it will return the existing one
 	const { data: existingVideo, error: existingError } = await supabase
 		.from('videos')
-		.select('id, video_url, platform')
+		.select('id, video_url, platform, total_shares, available_shares')
 		.eq('video_url', cleanedVideoUrl.cleanUrl)
 		.single();
 
@@ -148,6 +148,9 @@ Deno.serve(async (req) => {
 					videoId: existingVideoId,
 					likesCount: latestSnapshot.likes,
 					commentsCount: latestSnapshot.comments,
+					totalShares: existingVideo.total_shares ? existingVideo.total_shares : 1000,
+					availableShares: existingVideo.available_shares ? existingVideo.available_shares : 1000,
+					platform: cleanedVideoUrl.platform,
 					createdAt: latestSnapshot.created_at
 				}),
 				{
@@ -243,7 +246,16 @@ Deno.serve(async (req) => {
 	console.log('Video data updated successfully:', videoData);
 	console.log('Video data fetched and stored successfully:', videoData);
 
-	return new Response(JSON.stringify(videoData), {
+	console.log('Total shares:', existingVideo.total_shares);
+	console.log('Available shares:', existingVideo.available_shares);
+
+	const finalReturnData = {
+		...videoData,
+		totalShares: existingVideo.total_shares ? existingVideo.total_shares : 1000,
+		availableShares: existingVideo.available_shares ? existingVideo.available_shares : 1000
+	};
+
+	return new Response(JSON.stringify(finalReturnData), {
 		headers: {
 			'Content-Type': 'application/json',
 			...corsHeaders

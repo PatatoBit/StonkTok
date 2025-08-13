@@ -234,8 +234,8 @@
 							<div class="stat-item">
 								<span class="stat-label">Shares remaining:</span>
 								<span class="stat-value"
-									>{videoData.total_shares ? videoData.total_shares : 'N/A'} / {videoData.available_shares
-										? videoData.available_shares
+									>{videoData.availableShares ? videoData.availableShares : 'N/A'} / {videoData.totalShares
+										? videoData.totalShares
 										: 'N/A'}</span
 								>
 							</div>
